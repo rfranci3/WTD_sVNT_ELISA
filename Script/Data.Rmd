@@ -1,0 +1,323 @@
+---
+title: "Data Cleaning and Analysis"
+author: "Raquel Francisco"
+date: "2024-03-12"
+output: html_document
+---
+Load Packages
+```{r setup, include=FALSE}
+#Packages
+library(here)
+library(lattice)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(tibble)
+library(ggpubr)
+library(epiR)
+library(gridExtra)
+```
+
+## sVNT Expirement WV White-tailed deer
+83 WTD in COVID Endemic Area
+40 Juice Samples
+40 Eluted Samples
+34 Sera Samples
+
+
+```{r all data}
+getwd()
+data<- read.csv(here('Data',"ELISA_2022Results.csv"))
+
+str(data)
+
+data$ID <- as.factor(data$ID)
+
+tibble(data)
+```
+
+Seperate into 3 different data frames: Serum, Juice, Elution
+
+Now will perform Optical Density comparisons!
+Need to ensure that duplicates are correlated
+
+```{r pressure, echo=FALSE}
+sedata <- data %>% select(starts_with("s")) #serum
+edata <- data %>% select(starts_with("e")) #elution
+jdata <- data %>% select(starts_with("j")) #juice
+
+#Serum
+#not normal; right skewed
+hist(sedata$sDup1)
+hist(sedata$sDup2)
+
+cor.test(sedata$sDup1, sedata$sDup2,
+         method = "spearman")
+#Highly correlated
+
+#Elution
+#not normal; right skewed
+hist(edata$eDup1)
+hist(edata$eDup2)
+
+cor.test(edata$eDup1, edata$eDup2,
+         method = "spearman")
+#Correlated
+
+#Juice
+#more normal?
+hist(jdata$jDup1)
+hist(jdata$jDup2)
+
+cor.test(jdata$jDup1, jdata$jDup2,
+         method = "spearman")
+#Highly correlated
+```
+Summary: Consistency of the assay with serum appears to be highest, then juice, last is elution.(Will use correlation co-efficent as justification for reasoning)
+
+Will now compare Inhibition between duplicates, which is an output of OD, thus these are not independent.
+```{r}
+##SERUM
+#more normal then ODs; left skewed
+hist(sedata$sD1Inh)
+hist(sedata$sD2Inh)
+
+cor.test(sedata$sD1Inh, sedata$sD2Inh,
+         method = "spearman")
+#Highly correlated
+
+ggscatter(sedata, x = "sD1Inh", y = "sD1Inh", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "spearman",
+          xlab = "Duplicate 1 Inhibition", ylab = "Duplicate 1 Inhibition")
+
+##JUICE
+#normalish
+hist(jdata$jD1Inh)
+hist(jdata$jD2Inh)
+
+cor.test(jdata$jD1Inh, jdata$jD2Inh,
+         method = "spearman")
+#Highly correlated
+
+ggscatter(jdata, x = "jD1Inh", y = "jD1Inh", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "spearman",
+          xlab = "Duplicate 1 Inhibition", ylab = "Duplicate 1 Inhibition")
+
+##ELUTED WHOLE BLOOD
+#not normal; left skewed
+hist(edata$eD1Inh)
+hist(edata$eD2Inh)
+
+cor.test(edata$eD1Inh, edata$eD2Inh,
+         method = "spearman")
+
+ggscatter(edata, x = "eD1Inh", y = "eD1Inh", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "spearman",
+          xlab = "Duplicate 1 Inhibition", ylab = "Duplicate 1 Inhibition")
+
+```
+Summary: results similar to testing with corr between the OD, however may be easier to digest if data reported as Inhibition because that's how results will be reported.
+
+##Correlations between biological sample types
+#Serum vs Juice
+```{r}
+cor.test(data$sAvgInh, data$jAvgInh,
+         method = "spearman")
+#not as correlated
+
+plotSJ <- ggscatter(data, x = "sAvgInh", y = "jAvgInh", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "spearman",
+          xlab = "Average Serum Inhibition", ylab = "Average Juice Inhibition")
+plotSJ
+
+```
+#Serum vs Elution
+```{r}
+cor.test(data$sAvgInh, data$eAvgInh,
+         method = "spearman")
+#S = 5578, p-value = 0.4028
+#alternative hypothesi: true rho is not equal to 0
+#sample estimates:rho 0.1477464 
+
+plotSE <- ggscatter(data, x = "sAvgInh", y = "eAvgInh", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "spearman",
+          xlab = "Average Serum Inhibition", ylab = "Average Elution Inhibition")
+
+plotSE
+#note gray is 95% confidence interval
+#grid.arrange(plotSE, plotSJ, nrow = 1)
+```
+##Manually creating tables: 
+#Sensitivity, Specificity, PPV, NPV
+```{r}
+count(data, vars= 'sCodeAvg')
+sum(data$sCodeAvg)
+#Tables made manually and double checked in epiR
+
+##building table for Elution
+elTable <- matrix(c(2,2,13,17), ncol=2, byrow=TRUE)
+colnames(elTable) <- c("T-", "T+")
+rownames(elTable) <- c("Ab-", "Ab+")
+elTable            
+
+margin1 <- margin.table(elTable, margin = 1)
+margin1
+margin2 <- margin.table(elTable, margin = 2)
+margin2
+
+Abpos <- margin1[2]
+Abpos
+Abneg <- margin1[1]
+Abneg
+testpos <- margin2[2]
+testpos
+testneg <- margin2[1]
+testneg
+truepos <- elTable[2, 2]
+truepos
+falsepos <- elTable[1, 2]
+falsepos
+trueneg <- elTable[1, 1]
+trueneg
+falseneg <- elTable[2, 1]
+falseneg
+
+#sensitivity
+truepos/Abpos
+#0.5666667 
+
+#specificity
+trueneg/Abneg
+#0.5
+
+#PPV
+truepos/testpos
+#0.8947368 
+
+#NPV
+trueneg/testneg
+#0.1333333 
+
+##building table for Juice
+jTable <- matrix(c(0,4,4,26), ncol=2, byrow=TRUE)
+colnames(jTable) <- c("T-", "T+")
+rownames(jTable) <- c("Ab-", "Ab+")
+jTable            
+
+jmargin1 <- margin.table(jTable, margin = 1)
+jmargin1
+jmargin2 <- margin.table(jTable, margin = 2)
+jmargin2
+
+jAbpos <- jmargin1[2]
+jAbpos
+jAbneg <- jmargin1[1]
+jAbneg
+jtestpos <- jmargin2[2]
+jtestpos
+jtestneg <- jmargin2[1]
+jtestneg
+jtruepos <- jTable[2, 2]
+jtruepos
+jfalsepos <- jTable[1, 2]
+jfalsepos
+jtrueneg <- jTable[1, 1]
+jtrueneg
+jfalseneg <- jTable[2, 1]
+jfalseneg
+
+#sensitivity
+jtruepos/jAbpos
+#0.8666667 
+
+#specificity
+jtrueneg/jAbneg
+#0
+
+#PPV
+jtruepos/jtestpos
+#0.8666667 
+
+#NPV
+jtrueneg/jtestneg
+#0
+```
+
+
+##epiR package
+#Confirmation
+```{r}
+#Elution vs Serum
+elTable
+#edit table to flip order
+elTable2 <- matrix(c(17,2,13,2), ncol=2, byrow=TRUE)
+colnames(elTable2) <- c("T+", "T-")
+rownames(elTable2) <- c("Ab+", "Ab-")
+elTable2
+
+rval<- epi.tests(elTable2, conf.level = 0.95)
+print(rval)
+str(rval)
+rval$detail
+
+#Juice vs Serum
+jTable2 <- matrix(c(26,4,4,0), ncol=2, byrow=TRUE)
+colnames(jTable2) <- c("T+", "T-")
+rownames(jTable2) <- c("Ab+", "Ab-")
+jTable2
+
+rval2<- epi.tests(jTable2, conf.level = 0.95)
+print(rval2)
+rval2$detail
+```
+
+Create a df from plot
+```{r}
+edata$Type <- ("Elution")
+sedata$Type <- ("Serum")
+jdata$Type <- ("Juice")
+
+plote <- edata %>% select('eAvgInh'|'eAvgResult'|'Type')
+plote <- plote %>% rename('AvgInh' = 'eAvgInh') %>% rename('AvgResult' = 'eAvgResult')
+
+plots <- sedata %>% select('sAvgInh'|'sAvgResult'|'Type')
+plots <- plots %>% rename('AvgInh' = 'sAvgInh') %>% rename('AvgResult' = 'sAvgResult')
+
+plotj <- jdata %>% select('jAvgInh'|'jAvgResult'|'Type')
+plotj <- plotj %>% rename('AvgInh' = 'jAvgInh') %>% rename('AvgResult' = 'jAvgResult')
+
+plotdata <- bind_rows(plote, plots, plotj)
+tibble(plotdata)
+
+```
+
+#Create Boxplot with raw points
+
+```{r}
+pplot <- ggplot(plotdata, aes(x = Type, y = AvgInh, color = AvgResult)) + 
+  geom_boxplot() +
+  geom_point(position=position_dodge(width=0.75)) + 
+  geom_hline(yintercept=30, linetype="dashed", size=1) 
+ 
+
+pplot
+
+pplot + 
+  ggtitle('Presence of Neutralizing Antibodies in White-tailed Deer Biological Samples') + 
+  scale_x_discrete(labels = c('Elution','Serosanguineous Fluid','Serum')) +
+  ylab('Average Inhibition') + 
+  xlab('') + 
+  labs(color='') +
+  theme(text = element_text(family = "serif"),
+        plot.title = element_text(size = 16), 
+        axis.text = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+```
+
