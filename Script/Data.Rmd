@@ -14,6 +14,7 @@ library(dplyr)
 library(tidyverse)
 library(tibble)
 library(ggpubr)
+library(knitr)
 library(epiR)
 library(gridExtra)
 ```
@@ -34,9 +35,23 @@ str(data)
 data$ID <- as.factor(data$ID)
 
 tibble(data)
+
+data_tibble <- tibble(data)
+
+# Convert tibble to text for display using knitr::kable
+tibble_text <- paste(kable(data_tibble, format = "markdown"), collapse = "\n")
+
+# Create a ggplot to display the tibble as text
+plot <- ggplot() +
+  annotate("text", x = 0.5, y = 0.5, label = tibble_text, hjust = 0.5, vjust = 0.5, size = 4, family = "mono") +
+  theme_void()
+
+# Save the figure as a PNG image
+ggsave(here("Figures","SupplementalTable1.pdf"), plot = plot, width = 28, height = 10, dpi = 300)
+
 ```
 
-Seperate into 3 different data frames: Serum, Juice, Elution
+Separate into 3 different data frames: Serum, Juice, Elution
 
 Now will perform Optical Density comparisons!
 Need to ensure that duplicates are correlated
@@ -307,17 +322,20 @@ pplot <- ggplot(plotdata, aes(x = Type, y = AvgInh, color = AvgResult)) +
 
 pplot
 
-pplot + 
-  ggtitle('Presence of Neutralizing Antibodies in White-tailed Deer Biological Samples') + 
-  scale_x_discrete(labels = c('Elution','Serosanguineous Fluid','Serum')) +
-  ylab('Average Inhibition') + 
+Figure1 <- pplot + 
+  ggtitle('Presence of Neutralizing Antibodies in\n White-tailed Deer Biological Samples') + 
+  scale_x_discrete(labels = c('FPS Eluate','Serosanguineous Fluid','Serum')) +
+  ylab('Average % Inhibition') + 
   xlab('') + 
   labs(color='') +
   theme(text = element_text(family = "serif"),
-        plot.title = element_text(size = 16), 
+        plot.title = element_text(size = 16, hjust = 0.5), 
         axis.text = element_text(size = 14),
         legend.text = element_text(size = 14),
+        legend.key.size = unit(1, "cm"), 
         axis.title = element_text(size = 14),
         panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(here("Figures","Figure1.tiff"), plot = Figure1, width = 10, height = 8, dpi = 300)
 ```
 
